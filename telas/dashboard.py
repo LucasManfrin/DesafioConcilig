@@ -26,29 +26,54 @@ class TelaDashboard:
         frame_stats = tk.Frame(self.frame_dashboard)
         frame_stats.pack(fill="x", pady=10)
         
-        # Obtém estatísticas
-        total_contratos = Database.execute_query("SELECT COUNT(*) FROM contratos", fetchone=True)[0]
-        total_arquivos = Database.execute_query(
-            "SELECT COUNT(*) FROM arquivos_importados WHERE usuario_id = ?", 
-            (self.app.usuario_id,), 
-            fetchone=True
-        )[0]
-        valor_total_result = Database.execute_query(
+        # Total de contratos por usuário
+        total_contratos = Database.execute_query(
             """
-            SELECT COALESCE(SUM(valor), 0) FROM contratos c
-            JOIN arquivos_importados a ON c.arquivo_id = a.id
-            WHERE a.usuario_id = ?
-            """, 
-            (self.app.usuario_id,), 
+            SELECT COUNT(*) 
+            FROM contratos
+            JOIN arquivos_importados ON contratos.arquivo_id = arquivos_importados.id
+            WHERE arquivos_importados.usuario_id = ?
+            """,
+            (self.app.usuario_id,),
             fetchone=True
         )
-        valor_total = valor_total_result[0] if valor_total_result[0] is not None else 0
+        total_contratos = total_contratos[0] if total_contratos else 0
+
+        # Total de arquivos importados por usuário
+        total_arquivos = Database.execute_query(
+            """
+            SELECT COUNT(*) 
+            FROM arquivos_importados 
+            WHERE usuario_id = ?
+            """,
+            (self.app.usuario_id,),
+            fetchone=True
+        )
+        total_arquivos = total_arquivos[0] if total_arquivos else 0
+
+        # Valor total dos contratos do usuário
+        valor_total_result = Database.execute_query(
+            """
+            SELECT SUM(contratos.valor) 
+            FROM contratos
+            JOIN arquivos_importados ON contratos.arquivo_id = arquivos_importados.id
+            WHERE arquivos_importados.usuario_id = ?
+            """,
+            (self.app.usuario_id,),
+            fetchone=True
+        )
+        valor_total = valor_total_result[0] if valor_total_result and valor_total_result[0] else 0.0
+        valor_total_formatado = f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+
+
         
         # Cria frames para as estatísticas
         stats = [
             {"texto": "Total de Contratos", "valor": total_contratos},
             {"texto": "Arquivos Importados", "valor": total_arquivos},
-            {"texto": f"Valor Total: R$ {valor_total:.2f}", "valor": ""}
+            {"texto": "Valor Total", "valor": f"{valor_total_formatado}"}
         ]
         
         for i, stat in enumerate(stats):

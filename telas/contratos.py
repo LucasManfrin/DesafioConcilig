@@ -471,19 +471,18 @@ class TelaContratos:
             messagebox.showerror("Erro", f"Erro ao recalcular atrasos: {str(e)}")
     
     def filtrar_contratos(self, cliente, status):
-        """Filtra os contratos de acordo com os critérios"""
-        # Limpa a tabela
+        """Filtra os contratos de acordo com os critérios do usuário logado"""
         for item in self.treeview.get_children():
             self.treeview.delete(item)
         
-        # Constrói a consulta SQL
         query = """
             SELECT c.id, c.numero_contrato, c.cliente, c.valor, 
-                   c.data_inicio, c.data_vencimento, c.status
+                c.data_inicio, c.data_vencimento, c.status
             FROM contratos c
-            WHERE 1=1
+            JOIN arquivos_importados a ON c.arquivo_id = a.id
+            WHERE a.usuario_id = ?
         """
-        params = []
+        params = [self.app.usuario_id]
         
         if cliente:
             query += " AND c.cliente LIKE ?"
@@ -493,18 +492,13 @@ class TelaContratos:
             query += " AND c.status LIKE ?"
             params.append(f"%{status.lower()}%")
         
-        query += " ORDER BY c.id DESC"  # Alterado para ordenar por ID para garantir consistência
+        query += " ORDER BY c.id DESC"
         
-        # Executa a consulta
         try:
             contratos = Database.execute_query(query, params)
-            
-            # Calcula o atraso em dias
             hoje = date.today()
             
-            # Adiciona os contratos à tabela
             for contrato in contratos:
-                # Converte a data de string para objeto date
                 try:
                     data_inicio = datetime.strptime(contrato[4], '%Y-%m-%d').date()
                 except Exception as e:
@@ -517,13 +511,9 @@ class TelaContratos:
                     print(f"Erro ao converter data_vencimento: {str(e)}")
                     data_vencimento = datetime.now().date()
                 
-                # Calcula o atraso
                 atraso = (hoje - data_vencimento).days if hoje > data_vencimento else 0
-                
-                # Determina o status correto com base no atraso
                 status_correto = "Vencido" if atraso > 0 else "Ativo"
                 
-                # Se o status no banco não corresponde ao calculado, atualiza
                 if contrato[6] and contrato[6].lower() != status_correto.lower():
                     try:
                         update_query = "UPDATE contratos SET status = ? WHERE id = ?"
@@ -532,15 +522,11 @@ class TelaContratos:
                     except Exception as e:
                         print(f"Erro ao atualizar status do contrato {contrato[0]}: {str(e)}")
                 
-                # Formata os valores
                 valor_formatado = f"R$ {contrato[3]:.2f}"
                 data_inicio_formatada = data_inicio.strftime("%d/%m/%Y")
                 data_vencimento_formatada = data_vencimento.strftime("%d/%m/%Y")
-                
-                # Define a tag para contratos em atraso
                 tag = "atraso" if atraso > 0 else ""
                 
-                # Adiciona à tabela com o status correto
                 self.treeview.insert(
                     "", "end", 
                     values=(
@@ -550,19 +536,13 @@ class TelaContratos:
                         valor_formatado, 
                         data_inicio_formatada, 
                         data_vencimento_formatada, 
-                        status_correto,  # Usa o status calculado, não o do banco
+                        status_correto,
                         atraso if atraso > 0 else "Em dia"
                     ),
                     tags=(tag,)
                 )
             
-            # Configura cores para linhas em atraso
             self.treeview.tag_configure("atraso", background="#ffcccc")
-            
+        
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao filtrar contratos: {str(e)}")
-
-# Teste do código
-if __name__ == "__main__":
-    print("Este módulo não deve ser executado diretamente.")
-    print("Ele deve ser importado e usado através do app.py")
